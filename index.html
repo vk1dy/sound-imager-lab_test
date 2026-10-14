@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#12161e">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mic Lab">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>3D-лаборатория микрофонов</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#1b1f27;--mut:#667085;--bd:#d9dde5;--acc:#2563eb;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1218;--card:#181c25;--tx:#e8ebf2;--mut:#98a2b3;--bd:#2a303c;--acc:#6aa0ff;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1218;--card:#181c25;--tx:#e8ebf2;--mut:#98a2b3;--bd:#2a303c;--acc:#6aa0ff;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+h1{font-size:18px;margin:0 0 2px}.sub{color:var(--mut);margin:0 0 12px;font-size:13px}
+.wrap{max-width:1200px;margin:0 auto;padding:14px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:12px}
+@media(max-width:880px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px;margin-bottom:12px}
+canvas{display:block;width:100%;height:auto;border-radius:6px;background:#12161e;touch-action:none}
+.sl{display:grid;grid-template-columns:6fr 6fr 4fr;gap:8px;align-items:start}
+.sl div{font-size:12px;margin-bottom:3px}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
+button,select{font:inherit;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:5px 9px;cursor:pointer}
+button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+label{display:block;font-size:12px;color:var(--mut);margin-top:9px}
+label b{color:var(--tx);float:right}
+input[type=range]{width:100%}
+.st{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:13px}
+.st span:nth-child(odd){color:var(--mut)}.st span:nth-child(even){text-align:right;font-variant-numeric:tabular-nums}
+.box{margin-top:10px;padding:8px;border-radius:6px;border:1px solid var(--bd);font-size:13px}
+.hint{color:var(--mut);font-size:12px;margin-top:6px}
+h3{font-size:13px;margin:0 0 6px}
+table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+th,td{padding:3px 6px;border-bottom:1px solid var(--bd);text-align:right}th:first-child,td:first-child{text-align:left}th{color:var(--mut);font-weight:500}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>🎙️ 3D-лаборатория микрофонов</h1>
+<p class="sub">Комната 6×4×3 м. Источник и микрофоны имеют координаты x, y, z. Вращайте сцену мышью, тяните объекты в сечениях, меняйте частоту и геометрию решётки.</p>
+<div class="row" style="margin-bottom:10px"><button id="tb1" class="on">3D-сцена</button><button id="tb2">Каналы микрофонов</button></div>
+<div class="grid">
+<div>
+ <div id="tabCh" style="display:none">
+  <div class="card">
+   <div class="row">
+    <span class="hint" style="margin:0">Сигнал источника:</span>
+    <select id="sg"><option value="tone">Тон (частота f)</option><option value="pulse">Импульс (щелчок)</option><option value="noise">Белый шум</option><option value="chirp">Чирп 200–6000 Гц</option></select>
+    <span class="hint" style="margin:0 0 0 8px">SNR</span><input type="range" id="snr" min="-10" max="60" value="30" style="width:120px"><b id="snv"></b>
+   </div>
+   <div class="hint" style="margin:0 0 6px">Сигналы, которые «записал» каждый микрофон (окно 32 мс, fs = 16 кГц): задержка r/c, затухание с расстоянием и собственный шум канала.</div>
+   <canvas id="osc" width="720" height="300"></canvas>
+  </div>
+  <div class="card"><h3>Спектры каналов (дБ)</h3><canvas id="spc" width="720" height="200"></canvas></div>
+  <div class="card">
+   <div class="row"><h3 style="margin:0">Взаимная корреляция пары → TDOA</h3><select id="pa"></select><span class="hint" style="margin:0">и</span><select id="pb"></select></div>
+   <canvas id="xc" width="720" height="200"></canvas><div class="hint" id="xci"></div>
+  </div>
+  <div class="card"><h3>Таблица каналов</h3><div style="overflow-x:auto"><table id="tbl"></table></div></div>
+ </div>
+ <div id="tabSc">
+ <div class="card">
+  <div class="row"><button id="pp">⏸ Пауза</button><span class="hint" style="margin:0">Тяните — вращение, колесо — масштаб, клик по объекту — выбрать</span></div>
+  <canvas id="c3" width="720" height="460"></canvas>
+ </div>
+ <div class="card">
+  <div class="row"><button id="m1" class="on">Волновое поле</button><button id="m2">Карта локализации</button><span class="hint" style="margin:0">Сечения проходят через источник (рамки в 3D-сцене). Тяните объекты прямо в сечениях.</span></div>
+  <div class="sl">
+   <div><span id="t1" style="color:#6aa0ff">Сверху (XY)</span><canvas id="s1"></canvas></div>
+   <div><span id="t2" style="color:#4ade80">Спереди (XZ)</span><canvas id="s2"></canvas></div>
+   <div><span id="t3" style="color:#fbbf24">Сбоку (YZ)</span><canvas id="s3"></canvas></div>
+  </div>
+ </div>
+</div>
+</div>
+<div>
+ <div class="card">
+  <label>Частота <b id="fv"></b></label><input type="range" id="fr" min="0" max="1000" value="400">
+  <label>Число микрофонов <b id="nv"></b></label><input type="range" id="nr" min="2" max="8" value="6">
+  <label>Шаг решётки <b id="sv"></b></label><input type="range" id="sr" min="2" max="80" value="15">
+  <label>Высота центра решётки <b id="zv"></b></label><input type="range" id="zr" min="2" max="28" value="12">
+  <div class="row" style="margin-top:10px">
+   <button id="p1" class="on">Линия</button><button id="p2">Плоскость</button><button id="p3">Круг</button><button id="p4">Куб</button><button id="p5">Случайно 3D</button>
+  </div>
+  <div class="box" id="status"></div>
+  <div class="box" id="geo"></div>
+ </div>
+ <div class="card">
+  <h3>Выбранный объект</h3>
+  <div class="row"><select id="sel"></select><label style="margin:0;display:flex;gap:4px;align-items:center"><input type="checkbox" id="all"> двигать всю решётку</label></div>
+  <label>X <b id="xv"></b></label><input type="range" id="xr" min="5" max="595" value="100">
+  <label>Y <b id="yv"></b></label><input type="range" id="yr" min="5" max="395" value="100">
+  <label>Z <b id="zzv"></b></label><input type="range" id="zzr" min="5" max="295" value="150">
+ </div>
+ <div class="card">
+  <div class="st">
+   <span>Длина волны λ</span><span id="s_l"></span>
+   <span>λ/2 (предел шага)</span><span id="s_h"></span>
+   <span>Макс. шаг до соседа</span><span id="s_d"></span>
+   <span>Апертура решётки</span><span id="s_a"></span>
+   <span>Порог алиасинга</span><span id="s_fa"></span>
+   <span>Нижняя граница ≈</span><span id="s_fl"></span>
+   <span>Оценка источника</span><span id="s_e"></span>
+   <span>Ошибка</span><span id="s_er"></span>
+  </div>
+  <div class="hint" id="dl"></div>
+ </div>
+</div>
+</div>
+</div>
+<script>
+const C=343,R={x:6,y:4,z:3},$=id=>document.getElementById(id),cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+const c3=$('c3').getContext('2d');
+let f=1000,N=6,step=.15,cz=1.2,shape='line',mode='field',playing=true,dirty=true,phi=0,sel=-1,moveAll=false,est=null,ghost=null,yaw=.6,pit=.45,camD=9.5,G={t:'line'};
+let src={x:1,y:1,z:1.8},mics=[];
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
+const HOT=[[10,10,25],[70,20,110],[190,55,80],[250,160,30],[255,250,170]];
+function ramp(t){t=cl(t,0,1)*4;const i=Math.min(3,Math.floor(t)),u=t-i;return HOT[i].map((v,k)=>v+(HOT[i+1][k]-v)*u)}
+// slices
+const PS=60,CELL=20;
+const S=[{id:'s1',a:'x',b:'y',f:'z'},{id:'s2',a:'x',b:'z',f:'y'},{id:'s3',a:'y',b:'z',f:'x'}];
+S.forEach(s=>{s.cv=$(s.id);s.c=s.cv.getContext('2d');s.wa=R[s.a];s.wb=R[s.b];s.rw=s.wa*CELL;s.rh=s.wb*CELL;
+ s.cv.width=s.wa*PS;s.cv.height=s.wb*PS;s.off=document.createElement('canvas');s.off.width=s.rw;s.off.height=s.rh;
+ s.oc=s.off.getContext('2d');s.img=s.oc.createImageData(s.rw,s.rh);s.bf=s.oc.createImageData(s.rw,s.rh);s.flip=s.b==='z'});
+function layout(){
+  const cx=3.8,cy=2.6;mics=[];
+  const corners=[[0,0,0],[1,0,0],[0,1,0],[0,0,1],[1,1,1],[1,1,0],[1,0,1],[0,1,1]];
+  for(let i=0;i<N;i++){
+    let x=cx,y=cy,z=cz;
+    if(shape==='line')x=cx+(i-(N-1)/2)*step;
+    else if(shape==='plane'){const cols=Math.ceil(Math.sqrt(N)),rows=Math.ceil(N/cols);x=cx+(i%cols-(cols-1)/2)*step;y=cy+(Math.floor(i/cols)-(rows-1)/2)*step}
+    else if(shape==='circle'){const r=step/(2*Math.sin(Math.PI/N)),a=2*Math.PI*i/N;x=cx+r*Math.cos(a);y=cy+r*Math.sin(a)}
+    else if(shape==='cube'){const q=corners[i];x=cx+(q[0]-.5)*step;y=cy+(q[1]-.5)*step;z=cz+(q[2]-.5)*step}
+    else{const s=step*(N-1)*.3+.05;x=cx+(Math.random()*2-1)*s;y=cy+(Math.random()*2-1)*s;z=cz+(Math.random()*2-1)*s}
+    mics.push({x:cl(x,.05,5.95),y:cl(y,.05,3.95),z:cl(z,.05,2.95)});
+  }
+  if(sel>=N)sel=-1;buildSel();dirty=true;
+}
+function buildSel(){buildPair();const s=$('sel');s.innerHTML='<option value="-1">Источник</option>'+mics.map((_,i)=>`<option value="${i}">Микрофон ${i+1}</option>`).join('');s.value=sel}
+const obj=()=>sel<0?src:mics[sel];
+function setCoord(o,ax,v){v=cl(v,.05,R[ax]-.05);if(o!==src&&moveAll){const d=v-o[ax];mics.forEach(m=>m[ax]=cl(m[ax]+d,.05,R[ax]-.05))}else o[ax]=v;dirty=true}
+// geometry
+const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}),len=v=>Math.hypot(v.x,v.y,v.z),dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
+const cross=(a,b)=>({x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x});
+function geo(){
+  const m0=mics[0];let v1=null;
+  for(const m of mics){const v=sub(m,m0);if(len(v)>.01){v1=v;break}}
+  if(!v1)return{t:'line'};
+  for(const m of mics){const v=sub(m,m0),c=cross(v1,v);if(len(c)>.003){const n=c;const l=len(n);n.x/=l;n.y/=l;n.z/=l;
+    if(mics.every(q=>Math.abs(dot(sub(q,m0),n))<.012))return{t:'plane',n,m0};return{t:'volume'}}}
+  return{t:'line'};
+}
+// beamforming
+function bfAt(x,y,z,rs,k){let a=0,b=0;for(let m=0;m<mics.length;m++){const p=k*(Math.hypot(x-mics[m].x,y-mics[m].y,z-mics[m].z)-rs[m]);a+=Math.cos(p);b+=Math.sin(p)}return(a*a+b*b)/(mics.length*mics.length)}
+function computeBF(){
+  const k=2*Math.PI*f/C,rs=mics.map(m=>dist(m,src));
+  S.forEach(s=>{const d=s.bf.data,o={x:src.x,y:src.y,z:src.z};
+    for(let j=0;j<s.rh;j++)for(let i=0;i<s.rw;i++){
+      o[s.a]=(i+.5)/s.rw*s.wa;o[s.b]=s.flip?s.wb-(j+.5)/s.rh*s.wb:(j+.5)/s.rh*s.wb;
+      const c=ramp(bfAt(o.x,o.y,o.z,rs,k)),q=(j*s.rw+i)*4;d[q]=c[0];d[q+1]=c[1];d[q+2]=c[2];d[q+3]=255}
+    s.oc.putImageData(s.bf,0,0);s.bfc=document.createElement('canvas');s.bfc.width=s.rw;s.bfc.height=s.rh;s.bfc.getContext('2d').putImageData(s.bf,0,0)});
+  let best=-1,bp=null;const nx=56,ny=38,nz=28;
+  for(let a=0;a<nx;a++)for(let b=0;b<ny;b++)for(let c=0;c<nz;c++){
+    const x=(a+.5)/nx*6,y=(b+.5)/ny*4,z=(c+.5)/nz*3,B=bfAt(x,y,z,rs,k);if(B>best){best=B;bp={x,y,z}}}
+  const c0={...bp};best=-1;
+  for(let a=-8;a<=8;a++)for(let b=-8;b<=8;b++)for(let c=-8;c<=8;c++){
+    const x=cl(c0.x+a*.03,0,6),y=cl(c0.y+b*.03,0,4),z=cl(c0.z+c*.03,0,3),B=bfAt(x,y,z,rs,k);if(B>best){best=B;bp={x,y,z}}}
+  est=bp;
+}
+function stats(){
+  G=geo();const lam=C/f;let dmax=0,D=0;
+  mics.forEach((m,i)=>{let b=1e9;mics.forEach((o,j)=>{if(i!==j)b=Math.min(b,dist(m,o))});dmax=Math.max(dmax,b)});
+  for(let i=0;i<N;i++)for(let j=i+1;j<N;j++)D=Math.max(D,dist(mics[i],mics[j]));
+  const fa=C/(2*dmax),fl=C/(2*D);
+  ghost=null;let mirrorHit=false;
+  if(G.t==='plane'){const d=dot(sub(src,G.m0),G.n);ghost={x:src.x-2*d*G.n.x,y:src.y-2*d*G.n.y,z:src.z-2*d*G.n.z};mirrorHit=dist(est,ghost)<dist(est,src)}
+  $('fv').textContent=f+' Гц';$('nv').textContent=N;$('sv').textContent=Math.round(step*100)+' см';$('zv').textContent=cz.toFixed(1)+' м';
+  $('s_l').textContent=(lam*100).toFixed(1)+' см';$('s_h').textContent=(lam*50).toFixed(1)+' см';$('s_d').textContent=(dmax*100).toFixed(1)+' см';
+  $('s_a').textContent=(D*100).toFixed(1)+' см';$('s_fa').textContent=Math.round(fa)+' Гц';$('s_fl').textContent=Math.round(fl)+' Гц';
+  $('s_e').textContent=`(${est.x.toFixed(2)}; ${est.y.toFixed(2)}; ${est.z.toFixed(2)})`;
+  $('s_er').textContent=(dist(est,src)*100).toFixed(1)+' см'+(mirrorHit?' · зеркало':'');
+  $('dl').innerHTML=mics.map((m,i)=>`M${i+1}: ${dist(m,src).toFixed(2)} м · ${(dist(m,src)/C*1000).toFixed(2)} мс`).join('<br>');
+  let t,c;
+  if(f>fa){t='⚠ Пространственный алиасинг: шаг больше λ/2 — на картах ложные максимумы.';c='var(--bad)'}
+  else if(f<fl){t='Ниже рабочей полосы: апертура мала относительно λ, максимум размыт.';c='var(--warn)'}
+  else{t='✓ Частота в рабочей полосе решётки.';c='var(--ok)'}
+  const s=$('status');s.textContent=t;s.style.color=c;s.style.borderColor=c;
+  const g=$('geo');
+  g.textContent=G.t==='line'?'Решётка — линия: определяется только угол к оси. Источник может быть в любой точке конуса (кольца) вокруг неё.':
+    G.t==='plane'?'Решётка — плоскость: источник и его зеркальное отражение относительно этой плоскости неотличимы (пунктирный призрак в 3D). Нужен микрофон вне плоскости.':
+    '✓ Решётка объёмная: положение определяется однозначно по всем трём осям.';
+  g.style.color=G.t==='volume'?'var(--ok)':'var(--warn)';
+  const o=obj();$('xr').value=o.x*100;$('yr').value=o.y*100;$('zzr').value=o.z*100;
+  $('xv').textContent=o.x.toFixed(2)+' м';$('yv').textContent=o.y.toFixed(2)+' м';$('zzv').textContent=o.z.toFixed(2)+' м';
+}
+// slice draw
+function sp(s,p){return[p[s.a]*PS,s.flip?(s.wb-p[s.b])*PS:p[s.b]*PS]}
+function drawSlice(s){
+  const k=2*Math.PI*f/C,c=s.c;
+  if(mode==='field'){const d=s.img.data,o={x:src.x,y:src.y,z:src.z};
+    for(let j=0;j<s.rh;j++)for(let i=0;i<s.rw;i++){
+      o[s.a]=(i+.5)/s.rw*s.wa;o[s.b]=s.flip?s.wb-(j+.5)/s.rh*s.wb:(j+.5)/s.rh*s.wb;
+      const r=dist(o,src),v=Math.cos(k*r-phi)/Math.sqrt(1+4*r),a=Math.abs(v),q=(j*s.rw+i)*4,t=v>0?[255,150,40]:[50,140,255];
+      d[q]=18+(t[0]-18)*a;d[q+1]=22+(t[1]-22)*a;d[q+2]=30+(t[2]-30)*a;d[q+3]=255}
+    s.oc.putImageData(s.img,0,0);c.drawImage(s.off,0,0,s.cv.width,s.cv.height)}
+  else c.drawImage(s.bfc,0,0,s.cv.width,s.cv.height);
+  c.strokeStyle='rgba(255,255,255,.1)';c.lineWidth=1;
+  for(let i=1;i<s.wa;i++){c.beginPath();c.moveTo(i*PS,0);c.lineTo(i*PS,s.cv.height);c.stroke()}
+  for(let j=1;j<s.wb;j++){c.beginPath();c.moveTo(0,j*PS);c.lineTo(s.cv.width,j*PS);c.stroke()}
+  mics.forEach((m,i)=>{const [x,y]=sp(s,m),al=Math.max(.3,1-Math.abs(m[s.f]-src[s.f])/1.5);
+    c.globalAlpha=al;c.fillStyle='hsl('+(i*360/N)+',80%,60%)';c.strokeStyle=sel===i?'#fff':'rgba(255,255,255,.5)';c.lineWidth=sel===i?3:1.5;
+    c.beginPath();c.arc(x,y,7,0,7);c.fill();c.stroke();c.fillStyle='#000';c.font='bold 9px system-ui';c.textAlign='center';c.fillText(i+1,x,y+3);c.textAlign='left'});
+  c.globalAlpha=1;let [x,y]=sp(s,src);c.fillStyle='#ff3b3b';c.strokeStyle=sel===-1?'#fff':'rgba(255,255,255,.7)';c.lineWidth=sel===-1?3:2;c.beginPath();c.arc(x,y,9,0,7);c.fill();c.stroke();
+  const mark=(p,dash)=>{const [ex,ey]=sp(s,p);c.strokeStyle='#22d3ee';c.lineWidth=2;c.setLineDash(dash?[3,3]:[]);c.beginPath();c.moveTo(ex-7,ey-7);c.lineTo(ex+7,ey+7);c.moveTo(ex+7,ey-7);c.lineTo(ex-7,ey+7);c.stroke();c.setLineDash([])};
+  if(est)mark(est);if(ghost)mark(ghost,true);
+}
+// 3D
+function proj(p){const x=p.x-3,y=p.y-2,z=p.z-1.5,cy=Math.cos(yaw),sy=Math.sin(yaw),x1=x*cy-y*sy,y1=x*sy+y*cy,cp=Math.cos(pit),sp_=Math.sin(pit),
+  y2=y1*cp-z*sp_,z2=y1*sp_+z*cp,d=camD+y2,s=560/d;return{X:360+x1*s,Y:235-z2*s,d,s}}
+function poly(pts,col,lw,dash){c3.strokeStyle=col;c3.lineWidth=lw;c3.setLineDash(dash||[]);c3.beginPath();pts.forEach((p,i)=>{const q=proj(p);i?c3.lineTo(q.X,q.Y):c3.moveTo(q.X,q.Y)});c3.stroke();c3.setLineDash([])}
+const P=(x,y,z)=>({x,y,z});
+function draw3(){
+  c3.clearRect(0,0,720,460);
+  for(let i=0;i<=6;i++)poly([P(i,0,0),P(i,4,0)],'rgba(255,255,255,.09)',1);
+  for(let j=0;j<=4;j++)poly([P(0,j,0),P(6,j,0)],'rgba(255,255,255,.09)',1);
+  const e='rgba(255,255,255,.3)';
+  poly([P(0,0,0),P(6,0,0),P(6,4,0),P(0,4,0),P(0,0,0)],e,1.2);poly([P(0,0,3),P(6,0,3),P(6,4,3),P(0,4,3),P(0,0,3)],e,1.2);
+  [[0,0],[6,0],[6,4],[0,4]].forEach(q=>poly([P(q[0],q[1],0),P(q[0],q[1],3)],e,1.2));
+  poly([P(0,0,src.z),P(6,0,src.z),P(6,4,src.z),P(0,4,src.z),P(0,0,src.z)],'rgba(106,160,255,.6)',1,[4,4]);
+  poly([P(0,src.y,0),P(6,src.y,0),P(6,src.y,3),P(0,src.y,3),P(0,src.y,0)],'rgba(74,222,128,.6)',1,[4,4]);
+  poly([P(src.x,0,0),P(src.x,4,0),P(src.x,4,3),P(src.x,0,3),P(src.x,0,0)],'rgba(251,191,36,.6)',1,[4,4]);
+  const k=2*Math.PI*f/C,ph=((phi%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+  for(let n=0;n<12;n++){const r=(ph+2*Math.PI*n)/k;if(r>7)break;const col=`rgba(255,150,40,${.75*(1-n/12)})`;
+    for(let pl=0;pl<3;pl++){const pts=[];for(let t=0;t<=48;t++){const a=t/48*2*Math.PI,ca=Math.cos(a)*r,sa=Math.sin(a)*r;
+      pts.push(pl===0?P(src.x+ca,src.y+sa,src.z):pl===1?P(src.x+ca,src.y,src.z+sa):P(src.x,src.y+ca,src.z+sa))}poly(pts,col,1)}}
+  mics.forEach(m=>poly([src,m],'rgba(255,255,255,.13)',1));
+  const items=[{p:src,k:'s'},...mics.map((m,i)=>({p:m,k:'m',i}))];
+  if(est)items.push({p:est,k:'e'});if(ghost)items.push({p:ghost,k:'g'});
+  items.forEach(it=>it.q=proj(it.p));items.sort((a,b)=>b.q.d-a.q.d);
+  items.forEach(it=>{const q=it.q,f0=proj(P(it.p.x,it.p.y,0));
+    if(it.k==='s'||it.k==='m'){c3.strokeStyle='rgba(255,255,255,.22)';c3.setLineDash([2,3]);c3.beginPath();c3.moveTo(q.X,q.Y);c3.lineTo(f0.X,f0.Y);c3.stroke();c3.setLineDash([])}
+    if(it.k==='s'){c3.fillStyle='#ff3b3b';c3.strokeStyle=sel===-1?'#fff':'rgba(255,255,255,.7)';c3.lineWidth=sel===-1?3:2;c3.beginPath();c3.arc(q.X,q.Y,Math.max(6,.1*q.s),0,7);c3.fill();c3.stroke()}
+    else if(it.k==='m'){c3.fillStyle='hsl('+(it.i*360/N)+',80%,60%)';c3.strokeStyle=sel===it.i?'#fff':'rgba(255,255,255,.5)';c3.lineWidth=sel===it.i?3:1.5;const r=Math.max(5,.06*q.s);
+      c3.beginPath();c3.arc(q.X,q.Y,r,0,7);c3.fill();c3.stroke();c3.fillStyle='#000';c3.font='bold 9px system-ui';c3.textAlign='center';c3.fillText(it.i+1,q.X,q.Y+3);c3.textAlign='left'}
+    else{c3.strokeStyle='#22d3ee';c3.lineWidth=2.5;c3.setLineDash(it.k==='g'?[3,3]:[]);c3.beginPath();c3.moveTo(q.X-9,q.Y-9);c3.lineTo(q.X+9,q.Y+9);c3.moveTo(q.X+9,q.Y-9);c3.lineTo(q.X-9,q.Y+9);c3.stroke();c3.setLineDash([])}});
+  const lam=C/f;c3.fillStyle='#fff';c3.font='12px system-ui';c3.fillText(`f = ${f} Гц   λ = ${(lam*100).toFixed(1)} см   ✕ оценка   ┄✕ зеркало`,12,448);
+}
+// ===== Каналы микрофонов =====
+const FS=16000,NS=1024,NV=512;
+let tab=0,sig='tone',snr=30,tAbs=0,pa=0,pb=1,chs=[],tick=0,sd=7;
+const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;
+const NSC=[],NPH=[];for(let i=0;i<48;i++){NSC.push(150+rnd()*6000);NPH.push(rnd()*6.283)}
+const MNZ=[];for(let m=0;m<8;m++){const a=[];for(let i=0;i<24;i++)a.push([100+rnd()*7000,rnd()*6.283]);MNZ.push(a)}
+const HANN=new Float64Array(NS);let SW=0;for(let i=0;i<NS;i++){HANN[i]=.5-.5*Math.cos(2*Math.PI*i/(NS-1));SW+=HANN[i]}
+const col=(k,a)=>`hsl(${k*360/N},80%,${a||62}%)`;
+function srcSig(t){
+  if(sig==='tone')return Math.sin(2*Math.PI*f*t);
+  if(sig==='pulse'){const u=((t%.025)+.025)%.025-.003;return Math.exp(-((u/.0002)*(u/.0002)))*Math.cos(2*Math.PI*2500*u)}
+  if(sig==='noise'){let s=0;for(let i=0;i<48;i++)s+=Math.sin(2*Math.PI*NSC[i]*t+NPH[i]);return s/4.9}
+  const T=.032,u=((t%T)+T)%T;return Math.sin(2*Math.PI*(200*u+(5800/(2*T))*u*u))}
+function genCh(){
+  const na=.44/Math.pow(10,snr/20)/Math.sqrt(12);
+  chs=mics.map((m,k)=>{const r=dist(m,src),tau=r/C,att=1/(1+.6*r),x=new Float32Array(NS),nz=MNZ[k];
+    for(let i=0;i<NS;i++){const t=tAbs+i/FS;let v=srcSig(t-tau)*att;
+      if(snr<60){let q=0;for(let j=0;j<24;j++)q+=Math.sin(2*Math.PI*nz[j][0]*t+nz[j][1]);v+=q*na}x[i]=v}return x});
+}
+function fft(re,im){const n=re.length;
+  for(let i=1,j=0;i<n;i++){let b=n>>1;for(;j&b;b>>=1)j^=b;j^=b;if(i<j){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t}}
+  for(let len=2;len<=n;len<<=1){const a=-2*Math.PI/len,wr=Math.cos(a),wi=Math.sin(a),h=len>>1;
+    for(let i=0;i<n;i+=len){let cr=1,ci=0;for(let j=0;j<h;j++){const p=i+j,q=p+h,vr=re[q]*cr-im[q]*ci,vi=re[q]*ci+im[q]*cr;
+      re[q]=re[p]-vr;im[q]=im[p]-vi;re[p]+=vr;im[p]+=vi;const t=cr*wr-ci*wi;ci=cr*wi+ci*wr;cr=t}}}}
+function buildPair(){const o=mics.map((_,i)=>`<option value="${i}">M${i+1}</option>`).join('');
+  ['pa','pb'].forEach(id=>$(id).innerHTML=o);pa=Math.min(pa,N-1);pb=Math.min(pb,N-1);if(pa===pb)pb=(pa+1)%N;$('pa').value=pa;$('pb').value=pb}
+function drawOsc(){
+  const c=$('osc').getContext('2d'),w=720,h=300,x0=130,lane=(h-18)/N,amp={tone:1,pulse:1,noise:3,chirp:1}[sig],pw=w-x0-8;
+  c.clearRect(0,0,w,h);c.font='11px system-ui';
+  for(let ms=0;ms<=30;ms+=5){const x=x0+ms/(NV/FS*1000)*pw;c.strokeStyle='rgba(255,255,255,.1)';c.lineWidth=1;c.beginPath();c.moveTo(x,0);c.lineTo(x,h-16);c.stroke();c.fillStyle='#8a94a6';c.fillText(ms+' мс',x-10,h-4)}
+  chs.forEach((x,k)=>{const cy=lane*(k+.5),r=dist(mics[k],src);
+    c.strokeStyle='rgba(255,255,255,.07)';c.beginPath();c.moveTo(0,lane*(k+1));c.lineTo(w,lane*(k+1));c.stroke();
+    c.strokeStyle=col(k);c.lineWidth=(k===pa||k===pb)?2:1.1;c.beginPath();
+    for(let i=0;i<NV;i++){const px=x0+i/(NV-1)*pw,py=cy-cl(x[i]/amp,-1.2,1.2)*lane*.45;i?c.lineTo(px,py):c.moveTo(px,py)}c.stroke();
+    c.fillStyle='#cbd5e1';c.fillText(`M${k+1} · ${r.toFixed(2)} м`,6,cy-2);c.fillStyle='#8a94a6';c.fillText(`${(r/C*1000).toFixed(2)} мс`,6,cy+11)});
+}
+function drawSpec(){
+  const c=$('spc').getContext('2d'),w=720,h=200,x0=40,pw=w-x0-8,ph=h-26,fmax=6000,bins=Math.floor(fmax/(FS/NS));
+  c.clearRect(0,0,w,h);c.font='11px system-ui';
+  for(let d=-100;d<=0;d+=20){const y=8+(0-d)/100*ph;c.strokeStyle='rgba(255,255,255,.1)';c.lineWidth=1;c.beginPath();c.moveTo(x0,y);c.lineTo(w-8,y);c.stroke();c.fillStyle='#8a94a6';c.fillText(d,8,y+4)}
+  for(let q=0;q<=fmax;q+=1000){const x=x0+q/fmax*pw;c.fillStyle='#8a94a6';c.fillText(q/1000+' кГц',x-12,h-6)}
+  chs.forEach((s,k)=>{const re=new Float64Array(NS),im=new Float64Array(NS);for(let i=0;i<NS;i++)re[i]=s[i]*HANN[i];fft(re,im);
+    c.strokeStyle=col(k);c.lineWidth=1.2;c.beginPath();
+    for(let b=0;b<=bins;b++){const m=20*Math.log10(2*Math.hypot(re[b],im[b])/SW+1e-6),x=x0+b/bins*pw,y=8+(0-cl(m,-100,0))/100*ph;b?c.lineTo(x,y):c.moveTo(x,y)}c.stroke()});
+  const fx=x0+f/fmax*pw;c.strokeStyle='rgba(255,255,255,.6)';c.setLineDash([4,3]);c.beginPath();c.moveTo(fx,8);c.lineTo(fx,8+ph);c.stroke();c.setLineDash([]);c.fillStyle='#fff';c.fillText('f',fx+3,18);
+}
+function drawXC(){
+  const c=$('xc').getContext('2d'),w=720,h=200,x0=40,pw=w-x0-8,y0=95,sc=80;c.clearRect(0,0,w,h);c.font='11px system-ui';
+  const a=chs[pa],b=chs[pb];if(!a||!b||pa===pb){c.fillStyle='#8a94a6';c.fillText('Выберите два разных микрофона',x0+10,y0);$('xci').textContent='';return}
+  const dd=dist(mics[pa],mics[pb]),L=Math.min(380,Math.ceil(dd/C*FS)+8),cc=new Float32Array(2*L+1);
+  for(let l=-L;l<=L;l++){let s=0,sa=0,sb=0;const n0=Math.max(0,-l),n1=Math.min(NV,NS-l);
+    for(let n=n0;n<n1;n++){const u=a[n],v=b[n+l];s+=u*v;sa+=u*u;sb+=v*v}cc[l+L]=s/(Math.sqrt(sa*sb)+1e-12)}
+  let bi=0;for(let i=1;i<cc.length;i++)if(cc[i]>cc[bi])bi=i;
+  let pk=bi;if(bi>0&&bi<cc.length-1){const y1=cc[bi-1],y2=cc[bi],y3=cc[bi+1],den=y1-2*y2+y3;if(den!==0)pk=bi+.5*(y1-y3)/den}
+  const lagE=pk-L,xp=l=>x0+(l+L)/(2*L)*pw,yp=v=>y0-v*sc;
+  c.strokeStyle='rgba(255,255,255,.12)';c.lineWidth=1;[-1,0,1].forEach(v=>{c.beginPath();c.moveTo(x0,yp(v));c.lineTo(w-8,yp(v));c.stroke();c.fillStyle='#8a94a6';c.fillText(v,12,yp(v)+4)});
+  const lim=dd/C*FS;c.fillStyle='rgba(255,255,255,.05)';c.fillRect(xp(-lim),8,xp(lim)-xp(-lim),h-34);
+  c.strokeStyle=col(pa);c.lineWidth=1.6;c.beginPath();cc.forEach((v,i)=>{const x=xp(i-L);i?c.lineTo(x,yp(v)):c.moveTo(x,yp(v))});c.stroke();
+  const lt=(dist(mics[pb],src)-dist(mics[pa],src))/C*FS;
+  c.strokeStyle='#4ade80';c.setLineDash([5,4]);c.beginPath();c.moveTo(xp(lt),8);c.lineTo(xp(lt),h-26);c.stroke();c.setLineDash([]);
+  c.fillStyle='#22d3ee';c.beginPath();c.arc(xp(lagE),yp(cc[bi]),5,0,7);c.fill();
+  c.fillStyle='#8a94a6';[-L,0,L].forEach(l=>c.fillText((l/FS*1000).toFixed(1)+' мс',xp(l)-14,h-8));
+  let n90=0;for(let i=1;i<cc.length-1;i++)if(cc[i]>=cc[i-1]&&cc[i]>cc[i+1]&&cc[i]>=.9*cc[bi])n90++;
+  const te=lagE/FS*1000,tt=lt/FS*1000;
+  $('xci').innerHTML=`Оценка TDOA: <b>${te.toFixed(3)} мс</b> · истинная (зелёная линия): ${tt.toFixed(3)} мс · ошибка ${(Math.abs(te-tt)*1000).toFixed(0)} мкс (≈ ${(Math.abs(te-tt)*C/10).toFixed(1)} см по пути). Серая зона — физически возможные задержки ±d/c = ±${(dd/C*1000).toFixed(2)} мс. Пиков ≥ 90%: ${n90}${n90>1?' — <span style="color:var(--bad)">неоднозначность задержки</span>':''}.`;
+}
+function updateTable(){
+  const wr=a=>((a+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI,k=2*Math.PI*f/C,w=2*Math.PI*f/FS,ph=[];
+  chs.forEach(s=>{let re=0,im=0;for(let i=0;i<NS;i++){re+=s[i]*HANN[i]*Math.cos(w*i);im-=s[i]*HANN[i]*Math.sin(w*i)}ph.push(Math.atan2(im,re))});
+  const r0=dist(mics[0],src);let h='<tr><th>Канал</th><th>r, м</th><th>Задержка, мс</th><th>Уровень, дБ</th><th>Δфаза на f, °</th><th>Скрытых оборотов 2π</th></tr>';
+  chs.forEach((s,i)=>{let e=0;for(let j=0;j<NV;j++)e+=s[j]*s[j];const r=dist(mics[i],src),meas=wr(ph[i]-ph[0]),exp=-k*(r-r0),n=Math.round((exp-meas)/(2*Math.PI));
+    h+=`<tr><td style="color:${col(i)}">● M${i+1}</td><td>${r.toFixed(2)}</td><td>${(r/C*1000).toFixed(2)}</td><td>${(10*Math.log10(e/NV+1e-12)).toFixed(1)}</td><td>${i?(meas*180/Math.PI).toFixed(0):'0'}</td><td>${i?(n?`<b style="color:var(--warn)">${n}</b>`:'0'):'—'}</td></tr>`});
+  $('tbl').innerHTML=h;
+}
+function drawCh(dt){
+  if(playing)tAbs+=dt*.8/f;genCh();drawOsc();drawSpec();drawXC();if(tick++%6===0)updateTable();
+}
+function setTab(n){tab=n;$('tabCh').style.display=n?'':'none';$('tabSc').style.display=n?'none':'';$('tb1').classList.toggle('on',!n);$('tb2').classList.toggle('on',!!n)}
+$('tb1').onclick=()=>setTab(0);$('tb2').onclick=()=>setTab(1);
+$('sg').onchange=e=>sig=e.target.value;
+$('snr').oninput=e=>{snr=+e.target.value;$('snv').textContent=snr+' дБ'};$('snv').textContent=snr+' дБ';
+$('pa').onchange=e=>pa=+e.target.value;$('pb').onchange=e=>pb=+e.target.value;
+let last=performance.now();
+function loop(t){const dt=(t-last)/1000;last=t;if(playing)phi+=dt*2*Math.PI*.8;
+  if(dirty){computeBF();stats();dirty=false}
+  if(tab===1)drawCh(dt);else{draw3();S.forEach(drawSlice)}requestAnimationFrame(loop)}
+// interaction: slices
+let drag=null;
+S.forEach(s=>{
+  const pt=e=>{const r=s.cv.getBoundingClientRect(),u=(e.clientX-r.left)/r.width*s.wa,v0=(e.clientY-r.top)/r.height*s.wb;return{u,v:s.flip?s.wb-v0:v0}};
+  s.cv.addEventListener('pointerdown',e=>{const p=pt(e);let best=null,bd=.22;
+    [src,...mics].forEach(o=>{const d=Math.hypot(o[s.a]-p.u,o[s.b]-p.v);if(d<bd){bd=d;best=o}});
+    if(best){sel=best===src?-1:mics.indexOf(best);$('sel').value=sel;drag={s};s.cv.setPointerCapture(e.pointerId);dirty=true}});
+  s.cv.addEventListener('pointermove',e=>{if(!drag||drag.s!==s)return;const p=pt(e),o=obj();setCoord(o,s.a,p.u);setCoord(o,s.b,p.v)});
+  s.cv.addEventListener('pointerup',()=>drag=null);
+});
+// interaction: 3D view
+let orb=null;const cv3=$('c3');
+cv3.addEventListener('pointerdown',e=>{orb={x:e.clientX,y:e.clientY,moved:false};cv3.setPointerCapture(e.pointerId)});
+cv3.addEventListener('pointermove',e=>{if(!orb)return;const dx=e.clientX-orb.x,dy=e.clientY-orb.y;if(Math.abs(dx)+Math.abs(dy)>3)orb.moved=true;
+  if(orb.moved){yaw+=dx*.008;pit=cl(pit+dy*.006,-.2,1.5)}orb.x=e.clientX;orb.y=e.clientY});
+cv3.addEventListener('pointerup',e=>{if(orb&&!orb.moved){const r=cv3.getBoundingClientRect(),mx=(e.clientX-r.left)/r.width*720,my=(e.clientY-r.top)/r.height*460;
+  let best=null,bd=18;[src,...mics].forEach(o=>{const q=proj(o),d=Math.hypot(q.X-mx,q.Y-my);if(d<bd){bd=d;best=o}});
+  if(best){sel=best===src?-1:mics.indexOf(best);$('sel').value=sel;dirty=true}}orb=null});
+cv3.addEventListener('wheel',e=>{e.preventDefault();camD=cl(camD+e.deltaY*.01,4,18)},{passive:false});
+// controls
+$('fr').oninput=e=>{f=Math.round(100*Math.pow(40,e.target.value/1000));dirty=true};
+$('nr').oninput=e=>{N=+e.target.value;layout()};
+$('sr').oninput=e=>{step=e.target.value/100;layout()};
+$('zr').oninput=e=>{cz=e.target.value/10;layout()};
+$('sel').onchange=e=>{sel=+e.target.value;dirty=true};
+$('all').onchange=e=>moveAll=e.target.checked;
+$('xr').oninput=e=>setCoord(obj(),'x',e.target.value/100);$('yr').oninput=e=>setCoord(obj(),'y',e.target.value/100);$('zzr').oninput=e=>setCoord(obj(),'z',e.target.value/100);
+const SH={p1:'line',p2:'plane',p3:'circle',p4:'cube',p5:'random'};
+Object.keys(SH).forEach(id=>$(id).onclick=()=>{shape=SH[id];Object.keys(SH).forEach(i=>$(i).classList.toggle('on',i===id));layout()});
+$('m1').onclick=()=>{mode='field';$('m1').classList.add('on');$('m2').classList.remove('on')};
+$('m2').onclick=()=>{mode='bf';$('m2').classList.add('on');$('m1').classList.remove('on')};
+$('pp').onclick=()=>{playing=!playing;$('pp').textContent=playing?'⏸ Пауза':'▶ Пуск'};
+f=Math.round(100*Math.pow(40,.4));
+layout();requestAnimationFrame(loop);
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
+</script>
+</body>
+</html>
