@@ -54,10 +54,11 @@ th,td{padding:3px 6px;border-bottom:1px solid var(--bd);text-align:right}th:firs
   <div class="card">
    <div class="row">
     <span class="hint" style="margin:0">Сигнал источника:</span>
-    <select id="sg"><option value="tone">Тон (частота f)</option><option value="pulse">Импульс (щелчок)</option><option value="noise">Белый шум</option><option value="chirp">Чирп 200–6000 Гц</option></select>
+    <select id="sg"><option value="tone">Тон (частота f)</option><option value="pulse">Щелчок (короткий импульс)</option><option value="noise">Белый шум</option><option value="chirp">Чирп 200–6000 Гц</option></select>
     <span class="hint" style="margin:0 0 0 8px">SNR</span><input type="range" id="snr" min="-10" max="60" value="30" style="width:120px"><b id="snv"></b>
    </div>
-   <div class="hint" style="margin:0 0 6px">Сигналы, которые «записал» каждый микрофон (окно 32 мс, fs = 16 кГц): задержка r/c, затухание с расстоянием и собственный шум канала.</div>
+   <div class="hint" style="margin:0 0 6px">Сигналы, которые «записал» каждый микрофон: задержка r/c, затухание, шум канала. Окно по времени — авто или вручную (от 0.1 мкс до 100 мс), единицы подбираются сами (мс / мкс / нс). «Порядок» — целое число периодов f в задержке, затем доля цикла: микрофоны с разным порядком, но одинаковой долей выглядят на высоких частотах как одна и та же задержка.</div>
+   <div class="row"><label style="margin:0;display:flex;gap:4px;align-items:center"><input type="checkbox" id="tauto" checked> авто-окно</label><span class="hint" style="margin:0">Окно по времени:</span><input type="range" id="tzr" min="0" max="100" value="50" style="width:150px"><b id="tzv" style="font-size:12px"></b></div>
    <canvas id="osc" width="720" height="300"></canvas>
   </div>
   <div class="card"><h3>Спектры каналов (дБ)</h3><canvas id="spc" width="720" height="200"></canvas></div>
@@ -69,11 +70,12 @@ th,td{padding:3px 6px;border-bottom:1px solid var(--bd);text-align:right}th:firs
  </div>
  <div id="tabSc">
  <div class="card">
-  <div class="row"><button id="pp">⏸ Пауза</button><span class="hint" style="margin:0">Тяните — вращение, колесо — масштаб, клик по объекту — выбрать</span></div>
+  <div class="row"><button id="pp">⏸ Пауза</button><button id="cf">🎯 Камера на решётку</button><span class="hint" style="margin:0">Тяните — вращение, колесо — масштаб, клик по объекту — выбрать</span></div>
   <canvas id="c3" width="720" height="460"></canvas>
  </div>
  <div class="card">
   <div class="row"><button id="m1">Волновое поле</button><button id="m2" class="on">Карта SRP-PHAT (по данным каналов)</button><span class="hint" style="margin:0">Сечения проходят через источник (рамки в 3D-сцене). Тяните объекты прямо в сечениях.</span></div>
+  <div class="row"><span class="hint" style="margin:0">Масштаб</span><input type="range" id="vz" min="0" max="100" value="0" style="width:140px"><b id="vzv" style="font-size:12px">×1.0</b><select id="vc"><option value="arr">центр: решётка</option><option value="src">центр: источник</option><option value="room">центр: комната</option></select><button id="vf">Вписать решётку</button></div>
   <div class="sl">
    <div><span id="t1" style="color:#6aa0ff">Сверху (XY)</span><canvas id="s1"></canvas></div>
    <div><span id="t2" style="color:#4ade80">Спереди (XZ)</span><canvas id="s2"></canvas></div>
@@ -103,11 +105,12 @@ th,td{padding:3px 6px;border-bottom:1px solid var(--bd);text-align:right}th:firs
  <div class="card">
   <label>Частота <b id="fv"></b></label><input type="range" id="fr" min="0" max="1000" value="300">
   <label>Число микрофонов <b id="nv"></b></label><input type="range" id="nr" min="2" max="16" value="6">
-  <label>Шаг решётки <b id="sv"></b></label><input type="range" id="sr" min="2" max="80" value="15">
+  <label>Шаг решётки <b id="sv"></b></label><input type="range" id="sr" min="5" max="800" value="150">
   <label>Высота центра решётки <b id="zv"></b></label><input type="range" id="zr" min="2" max="28" value="12">
   <div class="row" style="margin-top:10px">
    <button id="p1" class="on">Линия</button><button id="p2">Плоскость</button><button id="p3">Круг</button><button id="p4">Куб</button><button id="p5">Случайно 3D</button>
   </div>
+  <div class="row" style="margin-top:10px"><button id="opt">⭐ Идеальная расстановка для этих условий</button></div><div class="hint" id="optinfo">Подбирает положения микрофонов под текущие частоту, сигнал, число микрофонов и диаграмму. Смена числа или шага сбрасывает расстановку.</div>
   <div class="box" id="status"></div>
   <div class="box" id="geo"></div>
  </div>
@@ -119,7 +122,7 @@ th,td{padding:3px 6px;border-bottom:1px solid var(--bd);text-align:right}th:firs
   <label>Z <b id="zzv"></b></label><input type="range" id="zzr" min="5" max="295" value="150">
   <h3 style="margin-top:12px">Направленность микрофонов</h3>
   <div class="row"><select id="pat"><option value="card" selected>Кардиоида (однонаправленный)</option><option value="super">Суперкардиоида</option><option value="hyper">Гиперкардиоида</option><option value="omni">Всенаправленный (для сравнения)</option></select></div>
-  <div class="row"><select id="aim"><option value="center">Наведены к центру комнаты</option><option value="out">Наружу от центра решётки</option><option value="xm">Все вдоль −X</option><option value="src">Идеально на источник</option><option value="custom">Свои углы</option></select></div>
+  <div class="row"><select id="aim"><option value="center">Наведены к центру комнаты</option><option value="out">Наружу от центра решётки</option><option value="xp">Все вдоль +X</option><option value="xm">Все вдоль −X</option><option value="yp">Все вдоль +Y</option><option value="ym">Все вдоль −Y</option><option value="zp">Все вверх (+Z)</option><option value="zm">Все вниз (−Z)</option><option value="src">Идеально на источник</option><option value="custom">Свои углы</option></select></div>
   <label>Азимут выбранного микрофона <b id="azv"></b></label><input type="range" id="azr" min="-180" max="180" value="0">
   <label>Подъём выбранного микрофона <b id="elv"></b></label><input type="range" id="elr" min="-90" max="90" value="0">
  </div>
@@ -205,12 +208,12 @@ function stats(){
   const fa=C/(2*dmax),fl=C/(2*D);
   ghost=null;let mirrorHit=false;
   if(G.t==='plane'){const d=dot(sub(src,G.m0),G.n);ghost={x:src.x-2*d*G.n.x,y:src.y-2*d*G.n.y,z:src.z-2*d*G.n.z};mirrorHit=dist(est,ghost)<dist(est,src)}
-  $('fv').textContent=fmtF(f);$('nv').textContent=N;$('sv').textContent=Math.round(step*100)+' см';$('zv').textContent=cz.toFixed(1)+' м';
+  $('fv').textContent=fmtF(f);$('nv').textContent=N;$('sv').textContent=(step*100).toFixed(1)+' см';$('zv').textContent=cz.toFixed(1)+' м';
   $('s_l').textContent=(lam*100).toFixed(1)+' см';$('s_h').textContent=(lam*50).toFixed(1)+' см';$('s_d').textContent=(dmax*100).toFixed(1)+' см';
   $('s_a').textContent=(D*100).toFixed(1)+' см';$('s_fa').textContent=fmtF(Math.round(fa));$('s_fl').textContent=fmtF(Math.round(fl));
   $('s_e').textContent=`(${est.x.toFixed(2)}; ${est.y.toFixed(2)}; ${est.z.toFixed(2)})`;
   $('s_er').textContent=(dist(est,src)*100).toFixed(1)+' см'+(mirrorHit?' · зеркало':'');
-  $('dl').innerHTML=mics.map((m,i)=>`M${i+1}: ${dist(m,src).toFixed(2)} м · ${(dist(m,src)/C*1000).toFixed(2)} мс`).join('<br>');
+  $('dl').innerHTML=mics.map((m,i)=>`M${i+1}: ${dist(m,src).toFixed(2)} м · ${fmtT(dist(m,src)/C)}`).join('<br>');
   let t,c;
   if(f>fa){t='⚠ Пространственный алиасинг: шаг больше λ/2 — на картах ложные максимумы.';c='var(--bad)'}
   else if(f<fl){t='Ниже рабочей полосы: апертура мала относительно λ, максимум размыт.';c='var(--warn)'}
@@ -264,20 +267,20 @@ function draw3(){
   for(let n=0;n<12;n++){const r=(ph+2*Math.PI*n)/k;if(r>7)break;const col=`rgba(255,150,40,${.75*(1-n/12)})`;
     for(let pl=0;pl<3;pl++){const pts=[];for(let t=0;t<=48;t++){const a=t/48*2*Math.PI,ca=Math.cos(a)*r,sa=Math.sin(a)*r;
       pts.push(pl===0?P(src.x+ca,src.y+sa,src.z):pl===1?P(src.x+ca,src.y,src.z+sa):P(src.x,src.y+ca,src.z+sa))}poly(pts,col,1)}}
-  mics.forEach(m=>{poly([src,m],'rgba(255,255,255,.13)',1);const a=aimDir(m);poly([m,P(m.x+a.x*.25,m.y+a.y*.25,m.z+a.z*.25)],'#facc15',2.5)});if(est)poly([src,est],'rgba(34,211,238,.7)',1.5,[3,3]);
+  mics.forEach(m=>{poly([src,m],'rgba(255,255,255,.13)',1);const a=aimDir(m);poly([m,P(m.x+a.x*ARL(),m.y+a.y*ARL(),m.z+a.z*ARL())],'#facc15',2.5)});if(est)poly([src,est],'rgba(34,211,238,.7)',1.5,[3,3]);
   const items=[{p:src,k:'s'},...mics.map((m,i)=>({p:m,k:'m',i}))];
   if(est)items.push({p:est,k:'e'});if(est2)items.push({p:est2,k:'e2'});if(ghost)items.push({p:ghost,k:'g'});
   items.forEach(it=>it.q=proj(it.p));items.sort((a,b)=>b.q.d-a.q.d);
   items.forEach(it=>{const q=it.q,f0=proj(P(it.p.x,it.p.y,0));
     if(it.k==='s'||it.k==='m'){c3.strokeStyle='rgba(255,255,255,.22)';c3.setLineDash([2,3]);c3.beginPath();c3.moveTo(q.X,q.Y);c3.lineTo(f0.X,f0.Y);c3.stroke();c3.setLineDash([])}
-    if(it.k==='s'){c3.fillStyle='#ff3b3b';c3.strokeStyle=sel===-1?'#fff':'rgba(255,255,255,.7)';c3.lineWidth=sel===-1?3:2;c3.beginPath();c3.arc(q.X,q.Y,Math.max(6,.1*q.s),0,7);c3.fill();c3.stroke()}
-    else if(it.k==='m'){c3.fillStyle='hsl('+(it.i*360/N)+',80%,60%)';c3.strokeStyle=sel===it.i?'#fff':'rgba(255,255,255,.5)';c3.lineWidth=sel===it.i?3:1.5;const r=Math.max(5,.06*q.s);
+    if(it.k==='s'){c3.fillStyle='#ff3b3b';c3.strokeStyle=sel===-1?'#fff':'rgba(255,255,255,.7)';c3.lineWidth=sel===-1?3:2;c3.beginPath();c3.arc(q.X,q.Y,cl(.03*q.s,6,10),0,7);c3.fill();c3.stroke()}
+    else if(it.k==='m'){c3.fillStyle='hsl('+(it.i*360/N)+',80%,60%)';c3.strokeStyle=sel===it.i?'#fff':'rgba(255,255,255,.5)';c3.lineWidth=sel===it.i?3:1.5;const r=cl(.012*q.s,3,7);
       c3.beginPath();c3.arc(q.X,q.Y,r,0,7);c3.fill();c3.stroke();c3.fillStyle='#000';c3.font='bold 9px system-ui';c3.textAlign='center';c3.fillText(it.i+1,q.X,q.Y+3);c3.textAlign='left'}
     else{c3.strokeStyle=it.k==='e2'?'#f0abfc':'#22d3ee';c3.lineWidth=2.5;c3.setLineDash(it.k==='g'?[3,3]:[]);c3.beginPath();c3.moveTo(q.X-9,q.Y-9);c3.lineTo(q.X+9,q.Y+9);c3.moveTo(q.X+9,q.Y-9);c3.lineTo(q.X-9,q.Y+9);c3.stroke();c3.setLineDash([])}});
   const lam=C/f;c3.fillStyle='#fff';c3.font='12px system-ui';c3.fillText(`f = ${fmtF(f)}   λ = ${(lam*100).toFixed(1)} см   ✕ оценка   ┄✕ зеркало`,12,448);
 }
 // ===== Каналы микрофонов =====
-let FS=16000;const NS=1024,NV=512;
+let FS=16000;const NS=2048,NV=1024;
 let tab=0,sig='tone',snr=30,tAbs=0,pa=0,pb=1,chs=[],tick=0,sd=7;
 const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;
 const NSC=[],NPH=[];for(let i=0;i<48;i++){NSC.push(.5+rnd());NPH.push(rnd()*6.283)}
@@ -365,8 +368,8 @@ function loop(t){const dt=(t-last)/1000;last=t;if(playing)phi+=dt*2*Math.PI*.8;
 // interaction: slices
 let drag=null;
 S.forEach(s=>{
-  const pt=e=>{const r=s.cv.getBoundingClientRect(),u=(e.clientX-r.left)/r.width*s.wa,v0=(e.clientY-r.top)/r.height*s.wb;return{u,v:s.flip?s.wb-v0:v0}};
-  s.cv.addEventListener('pointerdown',e=>{const p=pt(e);let best=null,bd=.22;
+  const pt=e=>{const r=s.cv.getBoundingClientRect(),w=s.win||win(s),fx=(e.clientX-r.left)/r.width,fy=(e.clientY-r.top)/r.height;return{u:w.a0+fx*(w.a1-w.a0),v:s.flip?w.b1-fy*(w.b1-w.b0):w.b0+fy*(w.b1-w.b0)}};
+  s.cv.addEventListener('pointerdown',e=>{const p=pt(e);const W_=s.win||win(s);let best=null,bd=.037*(W_.a1-W_.a0);
     [src,...mics].forEach(o=>{const d=Math.hypot(o[s.a]-p.u,o[s.b]-p.v);if(d<bd){bd=d;best=o}});
     if(best){sel=best===src?-1:mics.indexOf(best);$('sel').value=sel;drag={s};s.cv.setPointerCapture(e.pointerId);dirty=true}});
   s.cv.addEventListener('pointermove',e=>{if(!drag||drag.s!==s)return;const p=pt(e),o=obj();setCoord(o,s.a,p.u);setCoord(o,s.b,p.v)});
@@ -380,11 +383,11 @@ cv3.addEventListener('pointermove',e=>{if(!orb)return;const dx=e.clientX-orb.x,d
 cv3.addEventListener('pointerup',e=>{if(orb&&!orb.moved){const r=cv3.getBoundingClientRect(),mx=(e.clientX-r.left)/r.width*720,my=(e.clientY-r.top)/r.height*460;
   let best=null,bd=18;[src,...mics].forEach(o=>{const q=proj(o),d=Math.hypot(q.X-mx,q.Y-my);if(d<bd){bd=d;best=o}});
   if(best){sel=best===src?-1:mics.indexOf(best);$('sel').value=sel;dirty=true}}orb=null});
-cv3.addEventListener('wheel',e=>{e.preventDefault();camD=cl(camD+e.deltaY*.01,4,18)},{passive:false});
+cv3.addEventListener('wheel',e=>{e.preventDefault();camD=cl(camD*Math.exp(e.deltaY*.0015),.3,24)},{passive:false});
 // controls
 $('fr').oninput=e=>{f=Math.round(100*Math.pow(1000,e.target.value/1000));setFs();dirty=true};
 $('nr').oninput=e=>{N=+e.target.value;layout()};
-$('sr').oninput=e=>{step=e.target.value/100;layout()};
+$('sr').oninput=e=>{step=e.target.value/1000;layout()};
 $('zr').oninput=e=>{cz=e.target.value/10;layout()};
 $('sel').onchange=e=>{sel=+e.target.value;dirty=true};
 $('all').onchange=e=>moveAll=e.target.checked;
@@ -447,14 +450,14 @@ function lsq(p0,ref,tau,wt){let x=[p0.x,p0.y,p0.z],res=0;const mr=mics[ref];
     const d=solve3(A,b);for(let a=0;a<3;a++)x[a]=cl(x[a]-cl(d[a],-.5,.5),0,[6,4,3][a])}
   return{p:{x:x[0],y:x[1],z:x[2]},res:res*100}}
 function solve(){
-  const n=N,X=genData(NA,0),nr2=Math.pow(.44/Math.pow(10,snr/20),2)+1e-12;
-  const sn=X.map(x=>{let e=0;for(let i=0;i<NA;i++)e+=x[i]*x[i];return Math.max(0,e/NA-nr2)/nr2}),wc=sn.map(s=>s/(1+s));
-  let ref=0;sn.forEach((s,i)=>{if(s>sn[ref])ref=i});
+  const n=N,X=genData(NA,t0Frame(NA)),nr2=Math.pow(.44/Math.pow(10,snr/20),2)+1e-12;
+  let sn,wc,ref=0;
   const SR=[],SI=[],P=new Float64Array(MM);
   for(let i=0;i<n;i++){const re=new Float64Array(MM),im=new Float64Array(MM);for(let j=0;j<NA;j++)re[j]=X[i][j]*HN[j];fft(re,im);SR.push(re);SI.push(im);for(let k=0;k<MM;k++)P[k]+=re[k]*re[k]+im[k]*im[k]}
   const sm=Array.from({length:MM/2-1},(_,k)=>P[k+1]).sort((a,b)=>a-b),thr=Math.max(6*sm[sm.length>>1],.01*sm[sm.length-1]);
   const mask=new Uint8Array(MM);let K=0;for(let k=1;k<MM/2;k++)if(P[k]>thr){mask[k]=1;mask[MM-k]=1;K+=2}
   if(!K){for(let k=1;k<MM/2;k++){mask[k]=1;mask[MM-k]=1}K=MM-2}
+  {let sh=0;for(let j=0;j<NA;j++)sh+=HN[j]*HN[j];const ne=(K/2)*nr2*sh+1e-30;sn=SR.map((re,i)=>{let Sx=0;const im=SI[i];for(let k=1;k<MM/2;k++)if(mask[k])Sx+=re[k]*re[k]+im[k]*im[k];return Math.max(0,Sx/ne-1)});wc=sn.map(q=>q/(1+q));sn.forEach((q,i)=>{if(q>sn[ref])ref=i})}
   PRS=[];const seen=new Set(),add=(i,j)=>{if(i===j)return;const key=i<j?i*16+j:j*16+i;if(seen.has(key))return;seen.add(key);PRS.push({i,j})};
   if(n*(n-1)/2<=45){for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)add(i,j)}else for(let i=0;i<n;i++){add(i,ref);add(i,(i+1)%n);add(i,(i+2)%n)}
   WS=0;PRS.forEach(p=>{const re=new Float64Array(MM),im=new Float64Array(MM),a=SR[p.i],b=SI[p.i],c=SR[p.j],d=SI[p.j];
@@ -472,11 +475,7 @@ function solve(){
   const c1=bp;for(let a=-4;a<=4;a++)for(let b=-4;b<=4;b++)for(let c=-4;c<=4;c++){const x=cl(c1.x+a*.015,0,6),y=cl(c1.y+b*.015,0,4),z=cl(c1.z+c*.015,0,3),v=srpAt(x,y,z);if(v>best){best=v;bp={x,y,z}}}
   const c2=bp;for(let a=-4;a<=4;a++)for(let b=-4;b<=4;b++)for(let c=-4;c<=4;c++){const x=cl(c2.x+a*.004,0,6),y=cl(c2.y+b*.004,0,4),z=cl(c2.z+c*.004,0,3),v=srpAt(x,y,z);if(v>best){best=v;bp={x,y,z}}}
   est=bp;const pk=best;
-  S.forEach(s=>{if(!s.bfc){s.bfc=document.createElement('canvas');s.bfc.width=s.rw;s.bfc.height=s.rh}
-    const d=s.bf.data,o={x:est.x,y:est.y,z:est.z};
-    for(let j=0;j<s.rh;j++)for(let i=0;i<s.rw;i++){o[s.a]=(i+.5)/s.rw*s.wa;o[s.b]=s.flip?s.wb-(j+.5)/s.rh*s.wb:(j+.5)/s.rh*s.wb;
-      const v=Math.max(0,srpAt(o.x,o.y,o.z))/Math.max(pk,1e-6),c=ramp(Math.pow(Math.min(1,v),2)),q=(j*s.rw+i)*4;d[q]=c[0];d[q+1]=c[1];d[q+2]=c[2];d[q+3]=255}
-    s.bfc.getContext('2d').putImageData(s.bf,0,0)});
+  PK=pk;bfSlices();
   est2=isFinite(L.p.x+L.p.y+L.p.z)?L.p:null;
   RES={pk,ref,sn,wc,tau,n:PRS.length,res:L.res}}
 function showRes(){const r=RES;if(!r||!est)return;const P3=p=>`(${p.x.toFixed(2)}; ${p.y.toFixed(2)}; ${p.z.toFixed(2)})`;
@@ -504,6 +503,175 @@ $('pat').onchange=e=>{pat=e.target.value;dirty=true};
 $('aim').onchange=e=>{const v=e.target.value;if(v==='src'||v==='custom')aimMode=v;else aimAll(v);dirty=true};
 $('azr').oninput=e=>{if(sel>=0){mics[sel].az=e.target.value*Math.PI/180;aimMode='custom';$('aim').value='custom';dirty=true}};
 $('elr').oninput=e=>{if(sel>=0){mics[sel].el=e.target.value*Math.PI/180;aimMode='custom';$('aim').value='custom';dirty=true}};
+// ===== Блок 2: масштаб, оптимум, щелчок, порядки задержки =====
+let VZ=1,VC='arr',viewDirty=true,PK=1,tauto=true,tzr=50,dispW={Wd:1e-3,t0:0},dsp=[],tg={x:3,y:2,z:1.5},camFollow=false;
+const DN=720;
+function fmtT(s){const a=Math.abs(s);if(a>=1e-3)return(s*1e3).toFixed(a>=.1?1:3)+' мс';if(a>=1e-6)return(s*1e6).toFixed(a>=1e-4?1:2)+' мкс';return(s*1e9).toFixed(1)+' нс'}
+function fmtL(m){return m>=1?m+' м':m>=.01?(m*100).toFixed(0)+' см':(m*1000).toFixed(0)+' мм'}
+function centroid(){let x=0,y=0,z=0;mics.forEach(m=>{x+=m.x;y+=m.y;z+=m.z});const n=mics.length||1;return{x:x/n,y:y/n,z:z/n}}
+function extent(){const lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9];mics.forEach(m=>['x','y','z'].forEach((k,i)=>{lo[i]=Math.min(lo[i],m[k]);hi[i]=Math.max(hi[i],m[k])}));return Math.max(hi[0]-lo[0],hi[1]-lo[1],hi[2]-lo[2])}
+const ARL=()=>cl(.3*extent(),.015,.25);
+function vcenter(){return VC==='src'?src:VC==='room'?{x:3,y:2,z:1.5}:centroid()}
+function win(s){const c=vcenter(),wa=s.wa/VZ,wb=s.wb/VZ,ca=cl(c[s.a],wa/2,s.wa-wa/2),cb=cl(c[s.b],wb/2,s.wb-wb/2);return{a0:ca-wa/2,a1:ca+wa/2,b0:cb-wb/2,b1:cb+wb/2}}
+function sp(s,p){const w=s.win||win(s),CW=s.cv.width,CH=s.cv.height;return[(p[s.a]-w.a0)/(w.a1-w.a0)*CW,s.flip?(w.b1-p[s.b])/(w.b1-w.b0)*CH:(p[s.b]-w.b0)/(w.b1-w.b0)*CH]}
+function fitView(){VC='arr';$('vc').value='arr';let z=80;const lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9];
+  mics.forEach(m=>['x','y','z'].forEach((k,i)=>{lo[i]=Math.min(lo[i],m[k]);hi[i]=Math.max(hi[i],m[k])}));
+  const e={x:Math.max(hi[0]-lo[0],.02),y:Math.max(hi[1]-lo[1],.02),z:Math.max(hi[2]-lo[2],.02)};
+  S.forEach(s=>{z=Math.min(z,s.wa/(1.7*e[s.a]),s.wb/(1.7*e[s.b]))});VZ=cl(z,1,80);$('vz').value=100*Math.log(VZ)/Math.log(80);$('vzv').textContent='×'+VZ.toFixed(1);viewDirty=true}
+function bfSlices(){if(!est||!PRS.length)return;
+  S.forEach(s=>{if(!s.bfc){s.bfc=document.createElement('canvas');s.bfc.width=s.rw;s.bfc.height=s.rh}
+    const w=s.bfw=win(s),da=(w.a1-w.a0)/s.rw,db=(w.b1-w.b0)/s.rh,d=s.bf.data,o={x:est.x,y:est.y,z:est.z};
+    for(let j=0;j<s.rh;j++)for(let i=0;i<s.rw;i++){o[s.a]=w.a0+(i+.5)*da;const v0=(j+.5)*db;o[s.b]=s.flip?w.b1-v0:w.b0+v0;
+      const v=Math.max(0,srpAt(o.x,o.y,o.z))/Math.max(PK,1e-6),c=ramp(Math.pow(Math.min(1,v),2)),q=(j*s.rw+i)*4;d[q]=c[0];d[q+1]=c[1];d[q+2]=c[2];d[q+3]=255}
+    s.bfc.getContext('2d').putImageData(s.bf,0,0)})}
+function drawSlice(s){
+  const k=2*Math.PI*f/C,c=s.c,w=s.win=(mode==='bf'&&s.bfw)?s.bfw:win(s),CW=s.cv.width,CH=s.cv.height,span=w.a1-w.a0,spanB=w.b1-w.b0;
+  if(mode==='field'){const d=s.img.data,o={x:src.x,y:src.y,z:src.z},da=span/s.rw,db=spanB/s.rh,env=Math.max(da,db)>C/f/3;
+    for(let j=0;j<s.rh;j++)for(let i=0;i<s.rw;i++){o[s.a]=w.a0+(i+.5)*da;const v0=(j+.5)*db;o[s.b]=s.flip?w.b1-v0:w.b0+v0;
+      const r=dist(o,src),v=(env?1:Math.cos(k*r-phi))/Math.sqrt(1+4*r),a=Math.abs(v),q=(j*s.rw+i)*4,t=v>0?[255,150,40]:[50,140,255];
+      d[q]=18+(t[0]-18)*a;d[q+1]=22+(t[1]-22)*a;d[q+2]=30+(t[2]-30)*a;d[q+3]=255}
+    s.oc.putImageData(s.img,0,0);c.drawImage(s.off,0,0,CW,CH)}
+  else if(s.bfc)c.drawImage(s.bfc,0,0,CW,CH);else{c.fillStyle='#12161e';c.fillRect(0,0,CW,CH)}
+  const gs=[.001,.002,.005,.01,.02,.05,.1,.2,.5,1].find(q=>q>=span/8)||1;
+  c.strokeStyle='rgba(255,255,255,.12)';c.lineWidth=1;
+  for(let a=Math.ceil(w.a0/gs)*gs;a<w.a1;a+=gs){const x=(a-w.a0)/span*CW;c.beginPath();c.moveTo(x,0);c.lineTo(x,CH);c.stroke()}
+  for(let b=Math.ceil(w.b0/gs)*gs;b<w.b1;b+=gs){const y=s.flip?(w.b1-b)/spanB*CH:(b-w.b0)/spanB*CH;c.beginPath();c.moveTo(0,y);c.lineTo(CW,y);c.stroke()}
+  c.fillStyle='#9aa4b5';c.font='11px system-ui';c.fillText('сетка '+fmtL(gs)+' · ×'+VZ.toFixed(1),6,13);
+  const L=ARL();
+  mics.forEach((m,i)=>{const [x,y]=sp(s,m),al=Math.max(.3,1-Math.abs(m[s.f]-ctr[s.f])/1.5),a=aimDir(m),q2=sp(s,{x:m.x+a.x*L,y:m.y+a.y*L,z:m.z+a.z*L});
+    c.globalAlpha=al;c.strokeStyle='#facc15';c.lineWidth=2;c.beginPath();c.moveTo(x,y);c.lineTo(q2[0],q2[1]);c.stroke();
+    c.fillStyle='hsl('+(i*360/N)+',80%,60%)';c.strokeStyle=sel===i?'#fff':'rgba(255,255,255,.5)';c.lineWidth=sel===i?3:1.5;
+    c.beginPath();c.arc(x,y,7,0,7);c.fill();c.stroke();c.fillStyle='#000';c.font='bold 9px system-ui';c.textAlign='center';c.fillText(i+1,x,y+3);c.textAlign='left'});
+  c.globalAlpha=1;const [x,y]=sp(s,src);c.fillStyle='#ff3b3b';c.strokeStyle=sel===-1?'#fff':'rgba(255,255,255,.7)';c.lineWidth=sel===-1?3:2;c.beginPath();c.arc(x,y,9,0,7);c.fill();c.stroke();
+  const mark=(p,col,dash)=>{const [ex,ey]=sp(s,p);c.strokeStyle=col;c.lineWidth=2.2;c.setLineDash(dash?[3,3]:[]);c.beginPath();
+    if(col==='#22d3ee'){c.moveTo(ex-7,ey-7);c.lineTo(ex+7,ey+7);c.moveTo(ex+7,ey-7);c.lineTo(ex-7,ey+7)}else{c.moveTo(ex-8,ey);c.lineTo(ex+8,ey);c.moveTo(ex,ey-8);c.lineTo(ex,ey+8)}c.stroke();c.setLineDash([])};
+  if(est)mark(est,'#22d3ee');if(ghost)mark(ghost,'#22d3ee',true);if(est2)mark(est2,'#f0abfc');
+}
+function proj(p){const x=p.x-tg.x,y=p.y-tg.y,z=p.z-tg.z,cy=Math.cos(yaw),sy=Math.sin(yaw),x1=x*cy-y*sy,y1=x*sy+y*cy,cp=Math.cos(pit),sp_=Math.sin(pit),
+  y2=y1*cp-z*sp_,z2=y1*sp_+z*cp,d=Math.max(camD+y2,.05),s=560/d;return{X:360+x1*s,Y:235-z2*s,d,s}}
+// --- сигнал, щелчок, генерация ---
+function t0Frame(n){if(sig!=='pulse')return 0;let m=1e9;mics.forEach(q=>m=Math.min(m,dist(q,src)/C));return m-.3*n/FS}
+function srcSig(t){
+  if(sig==='tone')return Math.sin(2*Math.PI*f*t);
+  if(sig==='pulse'){const u=t*FS/2.5;return -1.65*u*Math.exp(-u*u/2)}
+  if(sig==='noise'){let s=0;for(let i=0;i<48;i++)s+=Math.sin(2*Math.PI*NSC[i]*f*t+NPH[i]);return s/4.9}
+  const T=NA/FS,u=((t%T)+T)%T;return Math.sin(2*Math.PI*(.5*f*u+(f/(2*T))*u*u))}
+function genMic(k,n,t0){const m=mics[k],r=dist(m,src),tau=r/C,att=dGain(m)*absorb(r)/(1+.6*r),na=.44/Math.pow(10,snr/20)/Math.sqrt(12),x=new Float32Array(n),nz=MNZ[k];
+  for(let i=0;i<n;i++){const t=t0+i/FS;let v=srcSig(t-tau)*att;
+    if(snr<60){let q=0;for(let j=0;j<24;j++)q+=Math.sin(2*Math.PI*(.03+.42*nz[j][0])*FS*t+nz[j][1]);v+=q*na}x[i]=v}return x}
+function genData(n,t0){return mics.map((_,k)=>genMic(k,n,t0))}
+function genDisp(t0,Wd){const na=.44/Math.pow(10,snr/20)/Math.sqrt(12);
+  return mics.map((m,k)=>{const r=dist(m,src),tau=r/C,att=dGain(m)*absorb(r)/(1+.6*r),x=new Float32Array(DN),nz=MNZ[k];
+    for(let i=0;i<DN;i++){const t=t0+i*Wd/(DN-1);let v=srcSig(t-tau)*att;
+      if(snr<60){let q=0;for(let j=0;j<24;j++)q+=Math.sin(2*Math.PI*(.03+.42*nz[j][0])*FS*t+nz[j][1]);v+=q*na}x[i]=v}return x})}
+function dispWin(){const ta=mics.map(m=>dist(m,src)/C),tmin=Math.min(...ta),tmax=Math.max(...ta);let Wd;
+  if(tauto){Wd=sig==='pulse'?Math.max(1.25*(tmax-tmin)+60/FS,40/FS):6/f;$('tzr').value=100*Math.log10(Math.max(cl(Wd,1e-6,.1),1e-6)/1e-6)/5}
+  else Wd=1e-6*Math.pow(10,tzr/100*5);
+  Wd=cl(Wd,5e-8,.2);$('tzv').textContent=fmtT(Wd);return{Wd,t0:sig==='pulse'?tmin-.12*Wd:tAbs}}
+// --- графики каналов ---
+function drawOsc(){
+  const c=$('osc').getContext('2d'),w=720,h=300,x0=140,pw=w-x0-8,lane=(h-20)/N,amp={tone:1,pulse:1,noise:3,chirp:1}[sig],Wd=dispW.Wd,base=sig==='pulse'?dispW.t0:0;
+  c.clearRect(0,0,w,h);c.font='11px system-ui';
+  const raw=Wd/6,mag=Math.pow(10,Math.floor(Math.log10(raw))),stp=[1,2,5,10].map(q=>q*mag).find(q=>q>=raw*.99);
+  for(let k=0;k*stp<=Wd*1.0001;k++){const tt=k*stp,x=x0+tt/Wd*pw;c.strokeStyle='rgba(255,255,255,.1)';c.lineWidth=1;c.beginPath();c.moveTo(x,0);c.lineTo(x,h-18);c.stroke();c.fillStyle='#8a94a6';c.fillText(fmtT(base+tt),Math.min(x-12,w-62),h-4)}
+  dsp.forEach((x,k)=>{const cy=lane*(k+.5),r=dist(mics[k],src),tau=r/C,ord=tau*f,n=Math.floor(ord);
+    c.strokeStyle='rgba(255,255,255,.07)';c.beginPath();c.moveTo(0,lane*(k+1));c.lineTo(w,lane*(k+1));c.stroke();
+    c.strokeStyle=col(k);c.lineWidth=(k===pa||k===pb)?2:1.1;c.beginPath();
+    for(let i=0;i<DN;i++){const px=x0+i/(DN-1)*pw,py=cy-cl(x[i]/amp,-1.2,1.2)*lane*.45;i?c.lineTo(px,py):c.moveTo(px,py)}c.stroke();
+    c.fillStyle='#cbd5e1';const ol=sig==='pulse'?'':`порядок ${n} +${((ord-n)*360).toFixed(0)}°`;
+    if(lane>=30){c.fillText(`M${k+1} · ${r.toFixed(3)} м`,6,cy-7);c.fillStyle='#8a94a6';c.fillText('τ='+fmtT(tau),6,cy+5);c.fillText(ol,6,cy+17)}
+    else if(lane>=18){c.fillText(`M${k+1} τ=${fmtT(tau)}`,6,cy-1);c.fillStyle='#8a94a6';c.fillText(ol,6,cy+10)}
+    else c.fillText(`M${k+1} τ=${fmtT(tau)}`,6,cy+3)});
+}
+function drawXC(){
+  const c=$('xc').getContext('2d'),w=720,h=200,x0=40,pw=w-x0-8,y0=95,sc=80;c.clearRect(0,0,w,h);c.font='11px system-ui';
+  if(pa===pb||!mics[pa]||!mics[pb]){c.fillStyle='#8a94a6';c.fillText('Выберите два разных микрофона',x0+10,y0);$('xci').textContent='';return}
+  const n=8192,M2=16384,t0=sig==='pulse'?t0Frame(n):tAbs,a=genMic(pa,n,t0),b=genMic(pb,n,t0);
+  const ar=new Float64Array(M2),ai=new Float64Array(M2),br=new Float64Array(M2),bi2=new Float64Array(M2);let ea=0,eb=0;
+  for(let i=0;i<n;i++){ar[i]=a[i];br[i]=b[i];ea+=a[i]*a[i];eb+=b[i]*b[i]}
+  fft(ar,ai);fft(br,bi2);
+  for(let k=0;k<M2;k++){const rr=ar[k]*br[k]+ai[k]*bi2[k],ri=ar[k]*bi2[k]-ai[k]*br[k];ar[k]=rr;ai[k]=-ri}
+  fft(ar,ai);
+  const dd=dist(mics[pa],mics[pb]),L=Math.min(4000,Math.ceil(dd/C*FS)+8),cc=new Float32Array(2*L+1),nrm=Math.sqrt(ea*eb)+1e-30;
+  for(let l=-L;l<=L;l++)cc[l+L]=ar[l&(M2-1)]/M2/nrm;
+  let bi=0;for(let i=1;i<cc.length;i++)if(cc[i]>cc[bi])bi=i;
+  let pk=bi;if(bi>0&&bi<cc.length-1){const y1=cc[bi-1],y2=cc[bi],y3=cc[bi+1],den=y1-2*y2+y3;if(den!==0)pk=bi+.5*(y1-y3)/den}
+  const lagE=pk-L,xp=l=>x0+(l+L)/(2*L)*pw,yp=v=>y0-v*sc;
+  c.strokeStyle='rgba(255,255,255,.12)';c.lineWidth=1;[-1,0,1].forEach(v=>{c.beginPath();c.moveTo(x0,yp(v));c.lineTo(w-8,yp(v));c.stroke();c.fillStyle='#8a94a6';c.fillText(v,12,yp(v)+4)});
+  const lim=dd/C*FS;c.fillStyle='rgba(255,255,255,.05)';c.fillRect(xp(-lim),8,xp(lim)-xp(-lim),h-34);
+  c.strokeStyle=col(pa);c.lineWidth=1.4;c.beginPath();cc.forEach((v,i)=>{const x=xp(i-L);i?c.lineTo(x,yp(v)):c.moveTo(x,yp(v))});c.stroke();
+  const lt=(dist(mics[pb],src)-dist(mics[pa],src))/C*FS;
+  c.strokeStyle='#4ade80';c.setLineDash([5,4]);c.beginPath();c.moveTo(xp(lt),8);c.lineTo(xp(lt),h-26);c.stroke();c.setLineDash([]);
+  c.fillStyle='#22d3ee';c.beginPath();c.arc(xp(lagE),yp(cc[bi]),5,0,7);c.fill();
+  c.fillStyle='#8a94a6';[-L,0,L].forEach(l=>c.fillText(fmtT(l/FS),xp(l)-18,h-8));
+  let n90=0;for(let i=1;i<cc.length-1;i++)if(cc[i]>=cc[i-1]&&cc[i]>cc[i+1]&&cc[i]>=.9*cc[bi])n90++;
+  const te=lagE/FS,tt=lt/FS,per=(te-tt)*f;
+  $('xci').innerHTML=`Оценка TDOA: <b>${fmtT(te)}</b> · истинная (зелёная линия): ${fmtT(tt)} · ошибка ${fmtT(Math.abs(te-tt))} (≈ ${(Math.abs(te-tt)*C*100).toFixed(2)} см по пути). Серая зона — возможные задержки ±d/c = ±${fmtT(dd/C)}. Пиков ≥ 90%: ${n90}${n90>1?' — <span style="color:var(--bad)">неоднозначность задержки</span>':''}${sig==='tone'&&Math.abs(per)>.7?` · сдвиг ≈ ${Math.round(per)} периодов f (ошибка порядка)`:''}.`;
+}
+function updateTable(){
+  const wr=a=>((a+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI,k=2*Math.PI*f/C,w=2*Math.PI*f/FS,ph=[],pu=sig==='pulse';
+  chs.forEach(s=>{let re=0,im=0;for(let i=0;i<NS;i++){re+=s[i]*HANN[i]*Math.cos(w*i);im-=s[i]*HANN[i]*Math.sin(w*i)}ph.push(Math.atan2(im,re))});
+  const r0=dist(mics[0],src);let h='<tr><th>Канал</th><th>r, м</th><th>Задержка τ</th><th>Порядок ⌊τ·f⌋</th><th>Доля цикла, °</th><th>Уровень, дБ</th><th>Δфаза изм., °</th><th>Скрытых оборотов 2π</th></tr>';
+  chs.forEach((s,i)=>{let e=0;for(let j=0;j<NV;j++)e+=s[j]*s[j];const r=dist(mics[i],src),tau=r/C,o=tau*f,n=Math.floor(o),meas=wr(ph[i]-ph[0]),ex=-k*(r-r0),nn=Math.round((ex-meas)/(2*Math.PI));
+    h+=`<tr><td style="color:${col(i)}">● M${i+1}</td><td>${r.toFixed(3)}</td><td>${fmtT(tau)}</td><td>${pu?'—':n}</td><td>${pu?'—':((o-n)*360).toFixed(0)}</td><td>${(10*Math.log10(e/NV+1e-12)).toFixed(1)}</td><td>${pu||!i?(i?'—':'0'):(meas*180/Math.PI).toFixed(0)}</td><td>${pu||!i?'—':(nn?`<b style="color:var(--warn)">${nn}</b>`:'0')}</td></tr>`});
+  $('tbl').innerHTML=h}
+function drawCh(dt){
+  if(playing&&sig!=='pulse')tAbs+=dt*.8/f;
+  chs=genData(NS,sig==='pulse'?t0Frame(NS):tAbs);dispW=dispWin();dsp=genDisp(dispW.t0,dispW.Wd);
+  drawOsc();if(tick%2===0)drawSpec();if(tick%3===0)drawXC();if(tick++%6===0)updateTable()}
+// --- оси направленности ---
+function aimAll(md){aimMode=md;let gx=0,gy=0,gz=0;mics.forEach(m=>{gx+=m.x/N;gy+=m.y/N;gz+=m.z/N});
+  const AX={xp:[1,0,0],xm:[-1,0,0],yp:[0,1,0],ym:[0,-1,0],zp:[0,0,1],zm:[0,0,-1]};
+  mics.forEach(m=>{let dx=-1,dy=0,dz=0;
+    if(md==='center'){dx=3-m.x;dy=2-m.y;dz=1.5-m.z}else if(md==='out'){dx=m.x-gx;dy=m.y-gy;dz=m.z-gz;if(Math.hypot(dx,dy,dz)<1e-6){dx=-1;dy=0;dz=0}}
+    else if(AX[md]){dx=AX[md][0];dy=AX[md][1];dz=AX[md][2]}
+    m.az=Math.atan2(dy,dx);m.el=Math.atan2(dz,Math.hypot(dx,dy))})}
+// --- идеальная расстановка ---
+const hal=(i,b)=>{let f_=1,r=0;while(i>0){f_/=b;r+=f_*(i%b);i=Math.floor(i/b)}return r};
+function gdop(pos,tests){const kA=.0023026*Math.pow(f/1000,1.05);let tot=0;
+  for(const p of tests){let sw=0,mx=0,my=0,mz=0,xx=0,yy=0,zz=0,xy=0,xz=0,yz=0;
+    for(const m of pos){const dx=m.x-p.x,dy=m.y-p.y,dz=m.z-p.z,r=Math.hypot(dx,dy,dz)+1e-6,ux=dx/r,uy=dy/r,uz=dz/r;let g=1;
+      if(pat!=='omni'){const ax=3-m.x,ay=2-m.y,az=1.5-m.z,al=Math.hypot(ax,ay,az)||1,cs=(ax*dx+ay*dy+az*dz)/(al*r),kk={card:.5,super:.37,hyper:.25}[pat];g=Math.abs(kk+(1-kk)*cs)}
+      const w=Math.pow(g*Math.exp(-kA*r)/(1+.6*r),2);sw+=w;mx+=w*ux;my+=w*uy;mz+=w*uz;xx+=w*ux*ux;yy+=w*uy*uy;zz+=w*uz*uz;xy+=w*ux*uy;xz+=w*ux*uz;yz+=w*uy*uz}
+    if(sw<1e-14){tot+=1e3;continue}
+    mx/=sw;my/=sw;mz/=sw;const A=[[xx-sw*mx*mx,xy-sw*mx*my,xz-sw*mx*mz],[xy-sw*mx*my,yy-sw*my*my,yz-sw*my*mz],[xz-sw*mx*mz,yz-sw*my*mz,zz-sw*mz*mz]],D=det3(A);
+    if(D<1e-16){tot+=1e3;continue}
+    const tr=(A[1][1]*A[2][2]-A[1][2]*A[2][1])+(A[0][0]*A[2][2]-A[0][2]*A[2][0])+(A[0][0]*A[1][1]-A[0][1]*A[1][0]);tot+=Math.sqrt(tr/D)}
+  return tot/tests.length}
+function optimizeLayout(){
+  const lam=C/f,tone=sig==='tone'&&lam/2>=.012,n=N,off=.4*lam,na=tone?Math.ceil(n/2):n,dirs=[[1,0,0],[0,1,0],[0,0,1]],dmin=tone?Math.min(.02,.3*lam):.02;
+  const tests=[...Array(36)].map((_,i)=>({x:.4+5.2*hal(i+1,2),y:.4+3.2*hal(i+1,3),z:.4+2.2*hal(i+1,5)}));
+  const lo=.1,hx=5.9-(tone?off:0),hy=3.9-(tone?off:0),hz=2.9-(tone?off:0);
+  const build=A=>{const o=[];A.forEach((a,k)=>{o.push({x:a.x,y:a.y,z:a.z});if(tone&&o.length<n){const d=dirs[k%3];o.push({x:a.x+off*d[0],y:a.y+off*d[1],z:a.z+off*d[2]})}});return o.slice(0,n)};
+  const ok=P=>{for(let i=0;i<P.length;i++)for(let j=i+1;j<P.length;j++)if(dist(P[i],P[j])<dmin-1e-9)return false;return true};
+  const cost=A=>{const P=build(A);return ok(P)?gdop(P,tests):1e3};
+  const g=()=>Math.sqrt(-2*Math.log(Math.random()+1e-12))*Math.cos(6.2832*Math.random()),rp=()=>({x:lo+Math.random()*(hx-lo),y:lo+Math.random()*(hy-lo),z:lo+Math.random()*(hz-lo)});
+  const before=gdop(mics,tests);let best=null,bc=1e9;const IT=1800;
+  for(let rs=0;rs<3;rs++){const A=[...Array(na)].map(rp);let cur=cost(A);const T0=Math.max(cur*.3,.05);
+    for(let it=0;it<IT;it++){const T=T0*(1-it/IT)+1e-6,sg=.6*(1-it/IT)+.03,k=Math.floor(Math.random()*na),old=A[k];
+      A[k]={x:cl(old.x+g()*sg,lo,hx),y:cl(old.y+g()*sg,lo,hy),z:cl(old.z+g()*sg,lo,hz)};const c=cost(A);
+      if(c<cur||Math.random()<Math.exp((cur-c)/T))cur=c;else A[k]=old}
+    if(cur<bc){bc=cur;best=A.map(a=>({...a}))}}
+  mics=build(best).map(p=>({x:p.x,y:p.y,z:p.z,az:0,el:0}));
+  if(aimMode==='src'||aimMode==='custom')aimAll('center');else aimAll(aimMode);
+  ['p1','p2','p3','p4','p5'].forEach(id=>$(id).classList.remove('on'));buildSel();dirty=true;fitView();
+  let D=0,mn=1e9;for(let i=0;i<mics.length;i++)for(let j=i+1;j<mics.length;j++){const d=dist(mics[i],mics[j]);D=Math.max(D,d);mn=Math.min(mn,d)}
+  $('optinfo').innerHTML=`GDOP (меньше — лучше): было <b>${before.toFixed(2)}</b> → стало <b>${bc.toFixed(2)}</b> ${bc<before?`(в ${(before/bc).toFixed(1)}× лучше)`:'(формально выше: для тона приоритет у однозначной фазы — это сознательный компромисс)'}. Апертура ${(D*100).toFixed(0)} см, ближайшие микрофоны ≥ ${(mn*100).toFixed(1)} см. Учтены: число микрофонов, диаграмма, затухание на частоте f, вся комната как область источника.`+
+    (sig==='tone'?(tone?' Для тона часть микрофонов поставлена парами ≤ 0.4λ (однозначная фаза), остальные — далеко (точность).':' Для тона на этой частоте пары ≤ λ/2 физически не реализуемы (λ/2 < 1.2 см): лучше широкополосный сигнал или щелчок.'):'')}
+// --- цикл ---
+function loop(t){const dt=(t-last)/1000;last=t;if(playing)phi+=dt*2*Math.PI*.8;
+  if(dirty){solveFlag=true;dirty=false}
+  if(solveFlag&&t-lastSolve>220){solve();stats();showRes();lastSolve=t;solveFlag=false;viewDirty=false}
+  else if(viewDirty){bfSlices();viewDirty=false}
+  ctr=(mode==='bf'&&est)?est:src;tg=camFollow?centroid():{x:3,y:2,z:1.5};
+  if(tab===1)drawCh(dt);else{draw3();S.forEach(drawSlice)}requestAnimationFrame(loop)}
+$('opt').onclick=optimizeLayout;
+$('vz').oninput=e=>{VZ=Math.pow(80,e.target.value/100);$('vzv').textContent='×'+VZ.toFixed(1);viewDirty=true};
+$('vc').onchange=e=>{VC=e.target.value;viewDirty=true};
+$('vf').onclick=fitView;
+$('cf').onclick=()=>{camFollow=!camFollow;$('cf').textContent=camFollow?'🎯 Камера на комнату':'🎯 Камера на решётку';camD=camFollow?cl(extent()*3+.4,.5,18):9.5};
+$('tauto').onchange=e=>{tauto=e.target.checked};
+$('tzr').oninput=e=>{tzr=+e.target.value;tauto=false;$('tauto').checked=false};
 f=Math.round(100*Math.pow(1000,.3));setFs();
 layout();requestAnimationFrame(loop);
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
