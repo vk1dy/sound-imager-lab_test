@@ -58,7 +58,7 @@ th,td{padding:3px 6px;border-bottom:1px solid var(--bd);text-align:right}th:firs
     <span class="hint" style="margin:0 0 0 8px">SNR</span><input type="range" id="snr" min="-10" max="60" value="30" style="width:120px"><b id="snv"></b>
    </div>
    <div class="hint" style="margin:0 0 6px">Сигналы, которые «записал» каждый микрофон: задержка r/c, затухание, шум канала. Окно по времени — авто или вручную (от 0.1 мкс до 100 мс), единицы подбираются сами (мс / мкс / нс). «Порядок» — целое число периодов f в задержке, затем доля цикла: микрофоны с разным порядком, но одинаковой долей выглядят на высоких частотах как одна и та же задержка.</div>
-   <div class="row"><label style="margin:0;display:flex;gap:4px;align-items:center"><input type="checkbox" id="tauto" checked> авто-окно</label><span class="hint" style="margin:0">Окно по времени:</span><input type="range" id="tzr" min="0" max="100" value="50" style="width:150px"><b id="tzv" style="font-size:12px"></b></div>
+   <div class="row"><label style="margin:0;display:flex;gap:4px;align-items:center"><input type="checkbox" id="tauto" checked> авто-окно</label><span class="hint" style="margin:0">Окно по времени:</span><input type="range" id="tzr" min="0" max="100" value="50" style="width:150px"><b id="tzv" style="font-size:12px"></b><label style="margin:0;display:flex;gap:4px;align-items:center"><input type="checkbox" id="tscan" checked> развёртка</label><span class="hint" style="margin:0">Сдвиг окна (щелчок):</span><input type="range" id="tps" min="0" max="100" value="0" style="width:120px"></div>
    <canvas id="osc" width="720" height="300"></canvas>
   </div>
   <div class="card"><h3>Спектры каналов (дБ)</h3><canvas id="spc" width="720" height="200"></canvas></div>
@@ -504,7 +504,7 @@ $('aim').onchange=e=>{const v=e.target.value;if(v==='src'||v==='custom')aimMode=
 $('azr').oninput=e=>{if(sel>=0){mics[sel].az=e.target.value*Math.PI/180;aimMode='custom';$('aim').value='custom';dirty=true}};
 $('elr').oninput=e=>{if(sel>=0){mics[sel].el=e.target.value*Math.PI/180;aimMode='custom';$('aim').value='custom';dirty=true}};
 // ===== Блок 2: масштаб, оптимум, щелчок, порядки задержки =====
-let VZ=1,VC='arr',viewDirty=true,PK=1,tauto=true,tzr=50,dispW={Wd:1e-3,t0:0},dsp=[],tg={x:3,y:2,z:1.5},camFollow=false;
+let tpos=0;let VZ=1,VC='arr',viewDirty=true,PK=1,tauto=true,tzr=50,dispW={Wd:1e-3,t0:0},dsp=[],tg={x:3,y:2,z:1.5},camFollow=false;
 const DN=720;
 function fmtT(s){const a=Math.abs(s);if(a>=1e-3)return(s*1e3).toFixed(a>=.1?1:3)+' мс';if(a>=1e-6)return(s*1e6).toFixed(a>=1e-4?1:2)+' мкс';return(s*1e9).toFixed(1)+' нс'}
 function fmtL(m){return m>=1?m+' м':m>=.01?(m*100).toFixed(0)+' см':(m*1000).toFixed(0)+' мм'}
@@ -553,7 +553,7 @@ function proj(p){const x=p.x-tg.x,y=p.y-tg.y,z=p.z-tg.z,cy=Math.cos(yaw),sy=Math
 function t0Frame(n){if(sig!=='pulse')return 0;let m=1e9;mics.forEach(q=>m=Math.min(m,dist(q,src)/C));return m-.3*n/FS}
 function srcSig(t){
   if(sig==='tone')return Math.sin(2*Math.PI*f*t);
-  if(sig==='pulse'){const u=t*FS/2.5;return -1.65*u*Math.exp(-u*u/2)}
+  if(sig==='pulse'){const u=t*FS/1.5;return -1.65*u*Math.exp(-u*u/2)}
   if(sig==='noise'){let s=0;for(let i=0;i<48;i++)s+=Math.sin(2*Math.PI*NSC[i]*f*t+NPH[i]);return s/4.9}
   const T=NA/FS,u=((t%T)+T)%T;return Math.sin(2*Math.PI*(.5*f*u+(f/(2*T))*u*u))}
 function genMic(k,n,t0){const m=mics[k],r=dist(m,src),tau=r/C,att=dGain(m)*absorb(r)/(1+.6*r),na=.44/Math.pow(10,snr/20)/Math.sqrt(12),x=new Float32Array(n),nz=MNZ[k];
@@ -567,10 +567,10 @@ function genDisp(t0,Wd){const na=.44/Math.pow(10,snr/20)/Math.sqrt(12);
 function dispWin(){const ta=mics.map(m=>dist(m,src)/C),tmin=Math.min(...ta),tmax=Math.max(...ta);let Wd;
   if(tauto){Wd=sig==='pulse'?Math.max(1.25*(tmax-tmin)+60/FS,40/FS):6/f;$('tzr').value=100*Math.log10(Math.max(cl(Wd,1e-6,.1),1e-6)/1e-6)/5}
   else Wd=1e-6*Math.pow(10,tzr/100*5);
-  Wd=cl(Wd,5e-8,.2);$('tzv').textContent=fmtT(Wd);return{Wd,t0:sig==='pulse'?tmin-.12*Wd:tAbs}}
+  Wd=cl(Wd,5e-8,.2);$('tzv').textContent=fmtT(Wd);return{Wd,t0:sig==='pulse'?(tauto?tmin-.12*Wd:tmin+tpos/100*(tmax-tmin)-.5*Wd):tAbs}}
 // --- графики каналов ---
 function drawOsc(){
-  const c=$('osc').getContext('2d'),w=720,h=300,x0=140,pw=w-x0-8,lane=(h-20)/N,amp={tone:1,pulse:1,noise:3,chirp:1}[sig],Wd=dispW.Wd,base=sig==='pulse'?dispW.t0:0;
+  const c=$('osc').getContext('2d'),w=720,h=300,x0=140,pw=w-x0-8,lane=(h-20)/N,amp={tone:1,pulse:.6,noise:3,chirp:1}[sig],Wd=dispW.Wd,base=sig==='pulse'?dispW.t0:0;
   c.clearRect(0,0,w,h);c.font='11px system-ui';
   const raw=Wd/6,mag=Math.pow(10,Math.floor(Math.log10(raw))),stp=[1,2,5,10].map(q=>q*mag).find(q=>q>=raw*.99);
   for(let k=0;k*stp<=Wd*1.0001;k++){const tt=k*stp,x=x0+tt/Wd*pw;c.strokeStyle='rgba(255,255,255,.1)';c.lineWidth=1;c.beginPath();c.moveTo(x,0);c.lineTo(x,h-18);c.stroke();c.fillStyle='#8a94a6';c.fillText(fmtT(base+tt),Math.min(x-12,w-62),h-4)}
@@ -582,6 +582,8 @@ function drawOsc(){
     if(lane>=30){c.fillText(`M${k+1} · ${r.toFixed(3)} м`,6,cy-7);c.fillStyle='#8a94a6';c.fillText('τ='+fmtT(tau),6,cy+5);c.fillText(ol,6,cy+17)}
     else if(lane>=18){c.fillText(`M${k+1} τ=${fmtT(tau)}`,6,cy-1);c.fillStyle='#8a94a6';c.fillText(ol,6,cy+10)}
     else c.fillText(`M${k+1} τ=${fmtT(tau)}`,6,cy+3)});
+  if(sig==='pulse'){const fr=((phi/(2*Math.PI))*.25)%1,xm=x0+fr*pw,ii=Math.round(fr*(DN-1));c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=1;c.beginPath();c.moveTo(xm,0);c.lineTo(xm,h-18);c.stroke();
+    dsp.forEach((x,k)=>{const cy=lane*(k+.5),py=cy-cl(x[ii]/amp,-1.2,1.2)*lane*.45;c.fillStyle=col(k);c.beginPath();c.arc(xm,py,3.5,0,7);c.fill()});c.fillStyle='#fff';c.fillText(fmtT(base+fr*Wd),Math.min(xm+4,w-70),11)}
 }
 function drawXC(){
   const c=$('xc').getContext('2d'),w=720,h=200,x0=40,pw=w-x0-8,y0=95,sc=80;c.clearRect(0,0,w,h);c.font='11px system-ui';
@@ -616,7 +618,7 @@ function updateTable(){
     h+=`<tr><td style="color:${col(i)}">● M${i+1}</td><td>${r.toFixed(3)}</td><td>${fmtT(tau)}</td><td>${pu?'—':n}</td><td>${pu?'—':((o-n)*360).toFixed(0)}</td><td>${(10*Math.log10(e/NV+1e-12)).toFixed(1)}</td><td>${pu||!i?(i?'—':'0'):(meas*180/Math.PI).toFixed(0)}</td><td>${pu||!i?'—':(nn?`<b style="color:var(--warn)">${nn}</b>`:'0')}</td></tr>`});
   $('tbl').innerHTML=h}
 function drawCh(dt){
-  if(playing&&sig!=='pulse')tAbs+=dt*.8/f;
+  if(playing&&sig!=='pulse')tAbs+=dt*.8/f;if(playing&&sig==='pulse'&&!tauto&&$('tscan').checked){tpos=(tpos+dt*12.5)%100;$('tps').value=tpos}
   chs=genData(NS,sig==='pulse'?t0Frame(NS):tAbs);dispW=dispWin();dsp=genDisp(dispW.t0,dispW.Wd);
   drawOsc();if(tick%2===0)drawSpec();if(tick%3===0)drawXC();if(tick++%6===0)updateTable()}
 // --- оси направленности ---
@@ -672,6 +674,7 @@ $('vf').onclick=fitView;
 $('cf').onclick=()=>{camFollow=!camFollow;$('cf').textContent=camFollow?'🎯 Камера на комнату':'🎯 Камера на решётку';camD=camFollow?cl(extent()*3+.4,.5,18):9.5};
 $('tauto').onchange=e=>{tauto=e.target.checked};
 $('tzr').oninput=e=>{tzr=+e.target.value;tauto=false;$('tauto').checked=false};
+$('tps').oninput=e=>{tpos=+e.target.value;$('tscan').checked=false;tauto=false;$('tauto').checked=false};
 f=Math.round(100*Math.pow(1000,.3));setFs();
 layout();requestAnimationFrame(loop);
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
